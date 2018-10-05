@@ -21,6 +21,7 @@ define([
             this.loadBaseUrl    = false;
             this.customerId     = data.customer_id ? data.customer_id : false;
             this.storeId        = data.store_id ? data.store_id : false;
+            this.quoteId        = data['quote_id'] ? data['quote_id'] : false;
             this.currencyId     = false;
             this.currencySymbol = data.currency_symbol ? data.currency_symbol : '';
             this.addresses      = data.addresses ? data.addresses : $H({});
@@ -38,6 +39,7 @@ define([
             this.isOnlyVirtualProduct = false;
             this.excludedPaymentMethods = [];
             this.summarizePrice = true;
+            this.timerId = null;
             jQuery.async('#order-items', (function(){
                 this.dataArea = new OrderFormArea('data', $(this.getAreaId('data')), this);
                 this.itemsArea = Object.extend(new OrderFormArea('items', $(this.getAreaId('items')), this), {
@@ -46,8 +48,8 @@ define([
                         if (typeof controlButtonArea != 'undefined') {
                             var buttons = controlButtonArea.childElements();
                             for (var i = 0; i < buttons.length; i++) {
-                                if (buttons[i].innerHTML.include(button.label)) {
-                                    return ;
+                                if (buttons[i].innerHTML.include(button.getLabel())) {
+                                    return;
                                 }
                             }
                             button.insertIn(controlButtonArea, 'top');
@@ -55,7 +57,8 @@ define([
                     }
                 });
 
-                var searchButton = new ControlButton(jQuery.mage.__('Add Products')),
+                var searchButtonId = 'add_products',
+                    searchButton = new ControlButton(jQuery.mage.__('Add Products'), searchButtonId),
                     searchAreaId = this.getAreaId('search');
                 searchButton.onClick = function() {
                     $(searchAreaId).show();
@@ -74,7 +77,7 @@ define([
 
                     this.itemsArea.onLoad = this.itemsArea.onLoad.wrap(function(proceed) {
                         proceed();
-                        if ($(searchAreaId) && !$(searchAreaId).visible()) {
+                        if ($(searchAreaId) && !$(searchAreaId).visible() && !$(searchButtonId)) {
                             this.addControlButton(searchButton);
                         }
                     });
@@ -187,14 +190,27 @@ define([
         bindAddressFields : function(container) {
             var fields = $(container).select('input', 'select', 'textarea');
             for(var i=0;i<fields.length;i++){
-                Event.observe(fields[i], 'change', this.changeAddressField.bind(this));
+                Event.observe(fields[i], 'change', this.triggerChangeEvent.bind(this));
             }
+        },
+
+        /**
+         * Calls changing address field handler after timeout to prevent multiple simultaneous calls.
+         *
+         * @param {Event} event
+         */
+        triggerChangeEvent: function (event) {
+            if (this.timerId) {
+                window.clearTimeout(this.timerId);
+            }
+
+            this.timerId = window.setTimeout(this.changeAddressField.bind(this), 500, event);
         },
 
         /**
          * Triggers on each form's element changes.
          *
-         * @param {Object} event
+         * @param {Event} event
          */
         changeAddressField: function (event) {
             var field = Event.element(event),
@@ -324,12 +340,12 @@ define([
                 data = this.serializeData(this.billingAddressContainer);
             } else {
                 data = this.serializeData(this.shippingAddressContainer);
-                areasToLoad.push('shipping_method');
             }
+            areasToLoad.push('shipping_method');
             data = data.toObject();
             data['shipping_as_billing'] = flag ? 1 : 0;
             data['reset_shipping'] = 1;
-            this.loadArea( areasToLoad, true, data);
+            this.loadArea(areasToLoad, true, data);
         },
 
         resetShippingMethod : function(data){
@@ -617,7 +633,7 @@ define([
                     }
                     else if (((elms[i].type == 'checkbox' || elms[i].type == 'radio') && elms[i].checked)
                         || ((elms[i].type == 'file' || elms[i].type == 'text' || elms[i].type == 'textarea' || elms[i].type == 'hidden')
-                        && Form.Element.getValue(elms[i]))
+                            && Form.Element.getValue(elms[i]))
                     ) {
                         if (this._isSummarizePrice(elms[i])) {
                             productPrice += getPrice(elms[i]);
@@ -905,6 +921,7 @@ define([
                     qtyElement.value = confirmedCurrentQty.value;
                 }
                 this.productConfigureAddFields['item['+itemId+'][configured]'] = 1;
+                this.itemsUpdate();
 
             }.bind(this));
             productConfigure.setShowWindowCallback(listType, function() {
@@ -1129,7 +1146,7 @@ define([
          */
         isPaymentValidationAvailable : function(){
             return ((typeof this.paymentMethod) == 'undefined'
-            || this.excludedPaymentMethods.indexOf(this.paymentMethod) == -1);
+                || this.excludedPaymentMethods.indexOf(this.paymentMethod) == -1);
         },
 
         serializeData : function(container){
@@ -1154,8 +1171,12 @@ define([
 
         submit : function()
         {
-            jQuery('#edit_form').trigger('processStart');
-            jQuery('#edit_form').trigger('submitOrder');
+            var $editForm = jQuery('#edit_form');
+
+            if ($editForm.valid()) {
+                $editForm.trigger('processStart');
+                $editForm.trigger('submitOrder');
+            }
         },
 
         _realSubmit: function () {
@@ -1394,12 +1415,15 @@ define([
         _label: '',
         _node: null,
 
-        initialize: function(label){
+        initialize: function(label, id){
             this._label = label;
             this._node = new Element('button', {
                 'class': 'action-secondary action-add',
                 'type':  'button'
             });
+            if (typeof id !== 'undefined') {
+                this._node.setAttribute('id', id)
+            }
         },
 
         onClick: function(){
@@ -1412,6 +1436,10 @@ define([
             node.update('<span>' + this._label + '</span>');
             content[position] = node;
             Element.insert(element, content);
+        },
+
+        getLabel: function(){
+            return this._label;
         }
     };
 

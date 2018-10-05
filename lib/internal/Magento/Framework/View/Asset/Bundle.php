@@ -212,7 +212,11 @@ class Bundle
         $assetContentType = $asset->getContentType();
         $assetKey = $this->getAssetKey($asset);
         if (!isset($this->assetsContent[$assetContextCode][$assetContentType][$assetKey])) {
-            $this->assetsContent[$assetContextCode][$assetContentType][$assetKey] = utf8_encode($asset->getContent());
+            $content = $asset->getContent();
+            if (mb_detect_encoding($content) !== "UTF-8") {
+                $content = mb_convert_encoding($content, "UTF-8");
+            }
+            $this->assetsContent[$assetContextCode][$assetContentType][$assetKey] = $content;
         }
 
         return $this->assetsContent[$assetContextCode][$assetContentType][$assetKey];
@@ -283,7 +287,7 @@ class Bundle
      */
     protected function fillContent($parts, $context)
     {
-        $index = count($this->content) > 0 ? count($this->content) - 1 : 0 ;
+        $index = count($this->content) > 0 ? count($this->content) - 1 : 0;
         foreach ($parts as $part) {
             if (!isset($this->content[$index])) {
                 $this->content[$index] = '';

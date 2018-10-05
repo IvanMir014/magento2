@@ -177,8 +177,8 @@ class CreditmemoService implements \Magento\Sales\Api\CreditmemoManagementInterf
                 $creditmemo->getOrder(),
                 !$offlineRequested
             );
-            $this->getOrderRepository()->save($order);
             $this->creditmemoRepository->save($creditmemo);
+            $this->getOrderRepository()->save($order);
             $connection->commit();
         } catch (\Exception $e) {
             $connection->rollBack();
@@ -195,7 +195,7 @@ class CreditmemoService implements \Magento\Sales\Api\CreditmemoManagementInterf
      */
     protected function validateForRefund(\Magento\Sales\Api\Data\CreditmemoInterface $creditmemo)
     {
-        if ($creditmemo->getId()) {
+        if ($creditmemo->getId() && $creditmemo->getState() != \Magento\Sales\Model\Order\Creditmemo::STATE_OPEN) {
             throw new \Magento\Framework\Exception\LocalizedException(
                 __('We cannot register an existing credit memo.')
             );
